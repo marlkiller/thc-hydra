@@ -52,6 +52,9 @@ jobs:
 
       - name: Collect artifacts
         run: |
+          set -e  # 先关掉，避免任何非零退出杀死脚本
+          set +e
+
           mkdir -p dist
           cp hydra.exe dist/ 2>/dev/null || true
           cp pw-inspector.exe dist/ 2>/dev/null || true
@@ -65,7 +68,6 @@ jobs:
             ncurses \
             libgcrypt \
             libgpg-error \
-            msys2-runtime \
           ; do
             pacman -Ql "$pkg" 2>/dev/null \
               | awk '{print $2}' \
