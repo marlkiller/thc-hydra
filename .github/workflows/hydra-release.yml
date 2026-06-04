@@ -1,0 +1,39 @@
+# .github/workflows/build-hydra.yml
+name: Build hydra for Windows
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-libssh
+            mingw-w64-ucrt-x86_64-postgresql
+            mingw-w64-ucrt-x86_64-libmariadbclient
+            openssl-devel libgcrypt-devel libidn-devel
+            libpcre pcre-devel subversion apr-devel apr-util-devel
+            mingw-w64-ucrt-x86_64-ntldd-git
+      - name: Build
+        run: |
+          ./configure --disable-xhydra
+          make -j$(nproc)
+      - name: Bundle DLLs
+        run: |
+          /mingw64/bin/ntldd.exe -R hydra.exe | grep -iv WINDOWS | cut -d '>' -f 2 | \
+          sed 's/.*) //' | xargs -I {} cp "{}" .
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydra-windows-x64
+          path: |
+            hydra.exe
+            *.dll
