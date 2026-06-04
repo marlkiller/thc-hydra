@@ -30,7 +30,7 @@ jobs:
             libssh-devel
             pcre2-devel
             libidn-devel
-            libncurses-devel
+            ncurses-devel
             libcrypt-devel
 
       - name: Configure
