@@ -41,7 +41,6 @@ jobs:
             libgcrypt-devel
             libgpg-error
             libgpg-error-devel
-            libcrypt
             libcrypt-devel
 
       - name: Configure
