@@ -17,7 +17,7 @@ jobs:
 
       - uses: msys2/setup-msys2@v2
         with:
-          msystem: MSYS          # ← 关键：用 MSYS 不是 MINGW64
+          msystem: MSYS
           update: true
           install: >-
             gcc
@@ -31,6 +31,8 @@ jobs:
             pcre2-devel
             libidn-devel
             ncurses-devel
+            libgcrypt-devel
+            libgpg-error-devel
             libcrypt-devel
 
       - name: Configure
@@ -39,26 +41,69 @@ jobs:
       - name: Build
         run: make -j$(nproc)
 
-      - name: Collect
+      - name: Collect artifacts
         run: |
-          mkdir dist
-          cp hydra.exe pw-inspector.exe dist/ 2>/dev/null || true
-          cp /usr/bin/msys-2.0.dll dist/
-          cp /usr/bin/msys-ssl-3.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-crypto-3.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-ssh-4.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-intl-8.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-iconv-2.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-z.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-idn2-0.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-gcrypt-20.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-gpg-error-0.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-ncursesw6.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-pcre2-8-0.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-unistring-5.dll dist/ 2>/dev/null || true
-          cp /usr/bin/msys-gmp-10.dll dist/ 2>/dev/null || true
+          mkdir -p dist
 
-      - uses: actions/upload-artifact@v4
+          cp hydra.exe dist/ 2>/dev/null || true
+          cp pw-inspector.exe dist/ 2>/dev/null || true
+
+          echo "=== All msys DLLs in /usr/bin ==="
+          ls /usr/bin/msys-*.dll
+
+          # 用 ldd 递归收集所有依赖 DLL
+          get_msys_deps() {
+            ldd "$1" 2>/dev/null | awk '/\/usr\/bin\/msys/{print $3}'
+          }
+
+          collect_recursive() {
+            local target="$1"
+            local deps
+            deps=$(get_msys_deps "$target")
+            for dll in $deps; do
+              local name
+              name=$(basename "$dll")
+              if [ -f "$dll" ] && [ ! -f "dist/$name" ]; then
+                echo "Copying: $dll"
+                cp "$dll" dist/
+                collect_recursive "$dll"
+              fi
+            done
+          }
+
+          collect_recursive hydra.exe
+          collect_recursive pw-inspector.exe
+
+          # 通配符兜底，防止 ldd 漏掉的
+          for pattern in \
+            "msys-2.0" \
+            "msys-ssl*" \
+            "msys-crypto*" \
+            "msys-ssh*" \
+            "msys-intl*" \
+            "msys-iconv*" \
+            "msys-z*" \
+            "msys-idn*" \
+            "msys-gcrypt*" \
+            "msys-gpg-error*" \
+            "msys-ncurses*" \
+            "msys-ncursesw*" \
+            "msys-pcre2*" \
+            "msys-unistring*" \
+            "msys-gmp*" \
+            "msys-pthread*" \
+          ; do
+            for f in /usr/bin/${pattern}.dll; do
+              [ -f "$f" ] && [ ! -f "dist/$(basename $f)" ] && cp "$f" dist/ && echo "Fallback copy: $f"
+            done
+          done
+
+          echo "=== dist contents ==="
+          ls -la dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: hydra-windows-msys2
           path: dist/
+          retention-days: 30
