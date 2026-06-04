@@ -34,7 +34,13 @@ jobs:
             libgcrypt-devel
             libgpg-error-devel
             libcrypt-devel
-
+      - name: Debug ssh dll
+        run: |
+          # 确认 libssh 的 dll 实际叫什么
+          pacman -Ql libssh | grep dll
+          # 确认文件存在
+          find /usr/bin -name "*ssh*"
+          
       - name: Configure
         run: ./configure
 
@@ -44,62 +50,28 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p dist
-
           cp hydra.exe dist/ 2>/dev/null || true
           cp pw-inspector.exe dist/ 2>/dev/null || true
-
-          echo "=== All msys DLLs in /usr/bin ==="
-          ls /usr/bin/msys-*.dll
-
-          # 用 ldd 递归收集所有依赖 DLL
-          get_msys_deps() {
-            ldd "$1" 2>/dev/null | awk '/\/usr\/bin\/msys/{print $3}'
-          }
-
-          collect_recursive() {
-            local target="$1"
-            local deps
-            deps=$(get_msys_deps "$target")
-            for dll in $deps; do
-              local name
-              name=$(basename "$dll")
-              if [ -f "$dll" ] && [ ! -f "dist/$name" ]; then
-                echo "Copying: $dll"
-                cp "$dll" dist/
-                collect_recursive "$dll"
-              fi
-            done
-          }
-
-          collect_recursive hydra.exe
-          collect_recursive pw-inspector.exe
-
-          # 通配符兜底，防止 ldd 漏掉的
-          for pattern in \
-            "msys-2.0" \
-            "msys-ssl*" \
-            "msys-crypto*" \
-            "msys-ssh*" \
-            "msys-intl*" \
-            "msys-iconv*" \
-            "msys-z*" \
-            "msys-idn*" \
-            "msys-gcrypt*" \
-            "msys-gpg-error*" \
-            "msys-ncurses*" \
-            "msys-ncursesw*" \
-            "msys-pcre2*" \
-            "msys-unistring*" \
-            "msys-gmp*" \
-            "msys-pthread*" \
-          ; do
-            for f in /usr/bin/${pattern}.dll; do
-              [ -f "$f" ] && [ ! -f "dist/$(basename $f)" ] && cp "$f" dist/ && echo "Fallback copy: $f"
+      
+          # ldd 递归收集（workflow 里 msys2 shell 有 ldd）
+          ldd hydra.exe | awk '{print $3}' | grep '^/usr/bin' | while read f; do
+            cp "$f" dist/ 2>/dev/null || true
+            ldd "$f" 2>/dev/null | awk '{print $3}' | grep '^/usr/bin' | while read f2; do
+              cp "$f2" dist/ 2>/dev/null || true
             done
           done
-
-          echo "=== dist contents ==="
-          ls -la dist/
+      
+          # 强制补上 libssh（不管叫什么名字）
+          pacman -Ql libssh | grep '/usr/bin.*\.dll' | awk '{print $2}' | while read f; do
+            echo "Force copy libssh dll: $f"
+            cp "$f" dist/ 2>/dev/null || true
+          done
+      
+          echo "=== ldd result ==="
+          ldd hydra.exe
+      
+          echo "=== dist ==="
+          ls dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
