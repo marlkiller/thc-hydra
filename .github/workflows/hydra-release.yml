@@ -43,8 +43,20 @@ jobs:
         run: |
           mkdir dist
           cp hydra.exe pw-inspector.exe dist/ 2>/dev/null || true
-          # 收集依赖的 msys DLL
-          ldd hydra.exe | grep msys | awk '{print $3}' | xargs -I{} cp {} dist/ 2>/dev/null || true
+          cp /usr/bin/msys-2.0.dll dist/
+          cp /usr/bin/msys-ssl-3.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-crypto-3.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-ssh-4.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-intl-8.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-iconv-2.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-z.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-idn2-0.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-gcrypt-20.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-gpg-error-0.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-ncursesw6.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-pcre2-8-0.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-unistring-5.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-gmp-10.dll dist/ 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         with:
