@@ -42,6 +42,7 @@ jobs:
             libgpg-error
             libgpg-error-devel
             libcrypt-devel
+            msys2-runtime
 
       - name: Configure
         run: ./configure
@@ -55,7 +56,6 @@ jobs:
           cp hydra.exe dist/ 2>/dev/null || true
           cp pw-inspector.exe dist/ 2>/dev/null || true
 
-          # 用 pacman 查每个已装包的 dll 文件，精确收集，不靠 ldd
           for pkg in \
             libssh \
             libopenssl \
@@ -65,7 +65,6 @@ jobs:
             ncurses \
             libgcrypt \
             libgpg-error \
-            libcrypt \
             msys2-runtime \
           ; do
             pacman -Ql "$pkg" 2>/dev/null \
@@ -76,8 +75,8 @@ jobs:
                 done
           done
 
-          # 兜底：收集 msys-2.0.dll 和 gcc runtime
           cp /usr/bin/msys-2.0.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-crypt-2.dll dist/ 2>/dev/null || true
           cp /usr/bin/msys-gcc_s-seh-1.dll dist/ 2>/dev/null || true
           cp /usr/bin/msys-iconv-2.dll dist/ 2>/dev/null || true
           cp /usr/bin/msys-intl-8.dll dist/ 2>/dev/null || true
