@@ -1,10 +1,7 @@
-# .github/workflows/build-windows.yml
-name: Build Windows Native
+name: Build Windows (MSYS2)
 
 on:
   push:
-    branches: [ master ]
-  pull_request:
     branches: [ master ]
   workflow_dispatch:
 
@@ -16,49 +13,40 @@ jobs:
         shell: msys2 {0}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
+      - uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: MSYS          # ← 关键：用 MSYS 不是 MINGW64
           update: true
           install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-libssh
-            mingw-w64-x86_64-libssh2
-            mingw-w64-x86_64-pcre
-            mingw-w64-x86_64-libidn2
-            mingw-w64-x86_64-pkg-config
+            gcc
             make
             autoconf
             automake
+            pkg-config
+            zlib-devel
+            openssl-devel
+            libssh-devel
+            pcre2-devel
+            libidn-devel
+            libncurses-devel
+            libcrypt-devel
 
       - name: Configure
-        run: |
-          ./configure \
-            --prefix=/mingw64 \
-            CFLAGS="-O2" \
-            LDFLAGS="-static-libgcc"
+        run: ./configure
 
       - name: Build
         run: make -j$(nproc)
 
-      - name: Collect artifacts
+      - name: Collect
         run: |
-          mkdir -p dist
-          cp hydra.exe dist/ 2>/dev/null || true
-          cp pw-inspector.exe dist/ 2>/dev/null || true
-          # 收集 MinGW 运行时 DLL（如果不想静态链接）
-          for dll in libssl libcrypto libssh libgcc_s libwinpthread libstdc++; do
-            find /mingw64/bin -name "${dll}*.dll" -exec cp {} dist/ \; 2>/dev/null || true
-          done
+          mkdir dist
+          cp hydra.exe pw-inspector.exe dist/ 2>/dev/null || true
+          # 收集依赖的 msys DLL
+          ldd hydra.exe | grep msys | awk '{print $3}' | xargs -I{} cp {} dist/ 2>/dev/null || true
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: hydra-windows-x64
+          name: hydra-windows-msys2
           path: dist/
-          retention-days: 30
