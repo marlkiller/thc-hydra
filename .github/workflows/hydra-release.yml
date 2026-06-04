@@ -25,22 +25,25 @@ jobs:
             autoconf
             automake
             pkg-config
+            zlib
             zlib-devel
+            libopenssl
             openssl-devel
+            libssh
             libssh-devel
+            pcre2
             pcre2-devel
+            libidn
             libidn-devel
+            ncurses
             ncurses-devel
+            libgcrypt
             libgcrypt-devel
+            libgpg-error
             libgpg-error-devel
+            libcrypt
             libcrypt-devel
-      - name: Debug ssh dll
-        run: |
-          # 确认 libssh 的 dll 实际叫什么
-          pacman -Ql libssh | grep dll
-          # 确认文件存在
-          find /usr/bin -name "*ssh*"
-          
+
       - name: Configure
         run: ./configure
 
@@ -52,26 +55,36 @@ jobs:
           mkdir -p dist
           cp hydra.exe dist/ 2>/dev/null || true
           cp pw-inspector.exe dist/ 2>/dev/null || true
-      
-          # ldd 递归收集（workflow 里 msys2 shell 有 ldd）
-          ldd hydra.exe | awk '{print $3}' | grep '^/usr/bin' | while read f; do
-            cp "$f" dist/ 2>/dev/null || true
-            ldd "$f" 2>/dev/null | awk '{print $3}' | grep '^/usr/bin' | while read f2; do
-              cp "$f2" dist/ 2>/dev/null || true
-            done
+
+          # 用 pacman 查每个已装包的 dll 文件，精确收集，不靠 ldd
+          for pkg in \
+            libssh \
+            libopenssl \
+            zlib \
+            pcre2 \
+            libidn \
+            ncurses \
+            libgcrypt \
+            libgpg-error \
+            libcrypt \
+            msys2-runtime \
+          ; do
+            pacman -Ql "$pkg" 2>/dev/null \
+              | awk '{print $2}' \
+              | grep '^/usr/bin/msys-.*\.dll$' \
+              | while read f; do
+                  [ -f "$f" ] && cp "$f" dist/ && echo "Copied: $f"
+                done
           done
-      
-          # 强制补上 libssh（不管叫什么名字）
-          pacman -Ql libssh | grep '/usr/bin.*\.dll' | awk '{print $2}' | while read f; do
-            echo "Force copy libssh dll: $f"
-            cp "$f" dist/ 2>/dev/null || true
-          done
-      
-          echo "=== ldd result ==="
-          ldd hydra.exe
-      
-          echo "=== dist ==="
-          ls dist/
+
+          # 兜底：收集 msys-2.0.dll 和 gcc runtime
+          cp /usr/bin/msys-2.0.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-gcc_s-seh-1.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-iconv-2.dll dist/ 2>/dev/null || true
+          cp /usr/bin/msys-intl-8.dll dist/ 2>/dev/null || true
+
+          echo "=== dist contents ==="
+          ls -la dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
