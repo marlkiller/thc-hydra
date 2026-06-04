@@ -1,45 +1,64 @@
-name: Build hydra for Windows
-on: [push, workflow_dispatch]
+# .github/workflows/build-windows.yml
+name: Build Windows Native
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: msys2/setup-msys2@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
         with:
-          msystem: UCRT64
+          msystem: MINGW64
           update: true
           install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-libssh
+            mingw-w64-x86_64-libssh2
+            mingw-w64-x86_64-pcre
+            mingw-w64-x86_64-libidn2
+            mingw-w64-x86_64-pkg-config
             make
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-libssh
-            mingw-w64-ucrt-x86_64-postgresql
-            mingw-w64-ucrt-x86_64-libmariadbclient
-            mingw-w64-ucrt-x86_64-libgcrypt
-            mingw-w64-ucrt-x86_64-libidn2
-            mingw-w64-ucrt-x86_64-pcre2
-            openssl-devel libgcrypt-devel libidn-devel
-            subversion apr-devel apr-util-devel
-            mingw-w64-ucrt-x86_64-ntldd-git
+            autoconf
+            automake
+
+      - name: Configure
+        run: |
+          ./configure \
+            --prefix=/mingw64 \
+            CFLAGS="-O2" \
+            LDFLAGS="-static-libgcc"
+
       - name: Build
+        run: make -j$(nproc)
+
+      - name: Collect artifacts
         run: |
-          ./configure --disable-xhydra
-          make -j$(nproc)
-      - name: Bundle DLLs
-        run: |
-          dest="${{ github.workspace }}/dist"
-          mkdir -p "$dest"
-          cp hydra.exe "$dest/"
-          /mingw64/bin/ntldd.exe -R hydra.exe | grep -iv WINDOWS | \
-            grep -v "not found" | cut -d '>' -f 2 | sed 's/.*) //' | \
-            grep -v '^$' | xargs -I {} cp "{}" "$dest/"
-      - name: Upload
+          mkdir -p dist
+          cp hydra.exe dist/ 2>/dev/null || true
+          cp pw-inspector.exe dist/ 2>/dev/null || true
+          # 收集 MinGW 运行时 DLL（如果不想静态链接）
+          for dll in libssl libcrypto libssh libgcc_s libwinpthread libstdc++; do
+            find /mingw64/bin -name "${dll}*.dll" -exec cp {} dist/ \; 2>/dev/null || true
+          done
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: hydra-windows-x64
           path: dist/
+          retention-days: 30
